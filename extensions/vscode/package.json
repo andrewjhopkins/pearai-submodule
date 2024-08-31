@@ -534,6 +534,13 @@
         "fileMatch": ".pearairc.json",
         "url": "./continue_rc_schema.json"
       }
+    ],
+    "themes": [
+      {
+        "label": "Palm Synthwave",
+        "uiTheme": "vs-dark",
+        "path": "./themes/palm_synthwave.json"
+      }
     ]
   },
   "scripts": {
