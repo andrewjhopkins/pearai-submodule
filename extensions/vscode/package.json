@@ -537,9 +537,9 @@
     ],
     "themes": [
       {
-        "label": "Palm Synthwave",
+        "label": "Hacker",
         "uiTheme": "vs-dark",
-        "path": "./themes/palm_synthwave.json"
+        "path": "./themes/hacker.json"
       }
     ]
   },
