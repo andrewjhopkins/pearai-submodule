@@ -22,19 +22,13 @@ import {
 class PearAIServer extends BaseLLM {
   getCredentials: (() => Promise<PearAuth | undefined>) | undefined = undefined;
   setCredentials: (auth: PearAuth) => Promise<void> = async () => {};
-  pearAIAccessToken: string | undefined = undefined;
-  pearAIRefreshToken: string | undefined = undefined;
-
 
   static providerName: ModelProvider = "pearai_server";
   constructor(options: LLMOptions) {
     super(options);
-    this.pearAIAccessToken = undefined;
-    this.pearAIRefreshToken = undefined;
   }
 
   private async _getHeaders() {
-    await this._checkAndUpdateCredentials();
     return {
       "Content-Type": "application/json",
       ...(await getHeaders()),
@@ -122,7 +116,7 @@ class PearAIServer extends BaseLLM {
       true,
     );
 
-    await this._checkAndUpdateCredentials();
+    const access_token = await this._checkAndFetchCredentials();
 
     const body = JSON.stringify({
             messages: messages.map(this._convertMessage),
@@ -133,7 +127,7 @@ class PearAIServer extends BaseLLM {
       method: "POST",
       headers: {
         ...(await this._getHeaders()),
-        Authorization: `Bearer ${this.pearAIAccessToken}`,
+        Authorization: `Bearer ${access_token}`,
       },
       body: body,
     });
@@ -165,8 +159,8 @@ class PearAIServer extends BaseLLM {
   ): AsyncGenerator<string> {
     options.stream = true;
 
-    let user_logged_in = await this._checkAndUpdateCredentials();
-    if (!user_logged_in) {
+    let access_token = await this._checkAndFetchCredentials();
+    if (!access_token) {
       return null
     }
 
@@ -189,7 +183,7 @@ class PearAIServer extends BaseLLM {
         ...(await this._getHeaders()),
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${this.pearAIAccessToken}`,
+        Authorization: `Bearer ${access_token}`,
       },
     });
     let completion = "";
@@ -209,42 +203,45 @@ class PearAIServer extends BaseLLM {
     return false;
   }
 
-  private async _checkAndUpdateCredentials(): Promise<boolean> {
+  private async _checkAndFetchCredentials(): Promise<string | undefined> {
+    let pearAIAccessToken = undefined;
+
     try {
       let creds = undefined;
+      let pearAIRefreshToken = undefined;
 
 
-      if (this.getCredentials && this.pearAIAccessToken === undefined) {
+      if (this.getCredentials) {
         console.log("Attempting to get credentials...");
         creds = await this.getCredentials();
 
         if (creds && creds.accessToken && creds.refreshToken) {
-          this.pearAIAccessToken = creds.accessToken;
-          this.pearAIRefreshToken = creds.refreshToken;
+          pearAIAccessToken = creds.accessToken;
+          pearAIRefreshToken = creds.refreshToken;
         }
         else {
-          return false;
+          return undefined;
         }
       }
 
-      const tokens = await checkTokens(this.pearAIAccessToken, this.pearAIRefreshToken);
+      const tokens = await checkTokens(pearAIAccessToken, pearAIRefreshToken);
 
-      if (tokens.accessToken !== this.pearAIAccessToken || tokens.refreshToken !== this.pearAIRefreshToken) {
-        if (tokens.accessToken !== this.pearAIAccessToken) {
-          this.pearAIAccessToken = tokens.accessToken;
+      if (tokens.accessToken !== pearAIAccessToken || tokens.refreshToken !== pearAIRefreshToken) {
+        if (tokens.accessToken !== pearAIAccessToken) {
+          pearAIAccessToken = tokens.accessToken;
           console.log(
             "PearAI access token changed from:",
-            this.pearAIAccessToken,
+            pearAIAccessToken,
             "to:",
             tokens.accessToken,
           );
         }
 
-        if (tokens.refreshToken !== this.pearAIRefreshToken) {
-          this.pearAIRefreshToken = tokens.refreshToken;
+        if (tokens.refreshToken !== pearAIRefreshToken) {
+          pearAIRefreshToken = tokens.refreshToken;
           console.log(
             "PearAI refresh token changed from:",
-            this.pearAIRefreshToken,
+            pearAIRefreshToken,
             "to:",
             tokens.refreshToken,
           );
@@ -259,7 +256,7 @@ class PearAIServer extends BaseLLM {
       console.error("Error checking token expiration:", error);
       // Handle the error (e.g., redirect to login page)
     }
-    return true
+    return pearAIAccessToken;
   }
 
   protected async _sendTokensUsed(
@@ -267,6 +264,9 @@ class PearAIServer extends BaseLLM {
     prompt: string,
     completion: string,
   ) {
+
+    const access_token = this._checkAndFetchCredentials();
+
     let promptTokens = this.countTokens(prompt);
     let generatedTokens = this.countTokens(completion);
 
@@ -274,7 +274,7 @@ class PearAIServer extends BaseLLM {
       method: "POST",
       headers: {
         ...(await this._getHeaders()),
-        Authorization: `Bearer ${this.pearAIAccessToken}`,
+        Authorization: `Bearer ${access_token}`,
       },
       body: JSON.stringify({
         kind,
