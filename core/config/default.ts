@@ -120,7 +120,7 @@ export const defaultConfig: SerializedContinueConfig = {
       isDefault: true,
     },
     {
-      model: "gemini-pro",
+      model: "gemini-1.5-pro",
       contextLength: 3000000,
       title: "Gemini (PearAI)",
       systemMessage:
